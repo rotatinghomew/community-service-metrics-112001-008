@@ -1,0 +1,42 @@
+[
+  {
+    "id": "D-1",
+    "grid": "G1",
+    "week": "2026-W18",
+    "category": "visit",
+    "count": 12,
+    "entered_late": 1
+  },
+  {
+    "id": "D-2",
+    "grid": "G1",
+    "week": "2026-W19",
+    "category": "visit",
+    "count": 19,
+    "entered_late": 5
+  },
+  {
+    "id": "D-3",
+    "grid": "G2",
+    "week": "2026-W18",
+    "category": "repair",
+    "count": 8,
+    "entered_late": 0
+  },
+  {
+    "id": "D-4",
+    "grid": "G2",
+    "week": "2026-W19",
+    "category": "repair",
+    "count": 15,
+    "entered_late": 2
+  },
+  {
+    "id": "D-5",
+    "grid": "G3",
+    "week": "2026-W19",
+    "category": "support",
+    "count": 0,
+    "entered_late": 0
+  }
+]

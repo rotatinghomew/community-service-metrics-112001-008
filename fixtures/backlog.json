@@ -1,0 +1,30 @@
+[
+  {
+    "case": "K-1",
+    "grid": "G1",
+    "category": "visit",
+    "estimated_hours": 5,
+    "status": "open"
+  },
+  {
+    "case": "K-2",
+    "grid": "G1",
+    "category": "visit",
+    "estimated_hours": 3,
+    "status": "paused"
+  },
+  {
+    "case": "K-3",
+    "grid": "G2",
+    "category": "repair",
+    "estimated_hours": 8,
+    "status": "open"
+  },
+  {
+    "case": "K-4",
+    "grid": "G3",
+    "category": "support",
+    "estimated_hours": 4,
+    "status": "open"
+  }
+]

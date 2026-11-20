@@ -1,0 +1,14 @@
+[
+  {
+    "week": "2026-W18",
+    "grid": "G1",
+    "event": "holiday",
+    "factor": 0.7
+  },
+  {
+    "week": "2026-W19",
+    "grid": "G2",
+    "event": "market",
+    "factor": 1.4
+  }
+]

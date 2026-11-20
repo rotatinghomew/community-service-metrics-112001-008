@@ -1,0 +1,38 @@
+[
+  {
+    "id": "S-1",
+    "person": "W-1",
+    "week": "2026-W20",
+    "grid": "G1",
+    "start": "09:00",
+    "end": "17:00",
+    "break_minutes": 60
+  },
+  {
+    "id": "S-2",
+    "person": "W-1",
+    "week": "2026-W20",
+    "grid": "G2",
+    "start": "13:00",
+    "end": "16:00",
+    "break_minutes": 0
+  },
+  {
+    "id": "S-3",
+    "person": "W-2",
+    "week": "2026-W20",
+    "grid": "G2",
+    "start": "09:00",
+    "end": "15:00",
+    "break_minutes": 30
+  },
+  {
+    "id": "S-4",
+    "person": "W-3",
+    "week": "2026-W20",
+    "grid": "G1",
+    "start": "10:00",
+    "end": "14:00",
+    "break_minutes": 0
+  }
+]
