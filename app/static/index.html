@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>社区服务负荷预测与排班情景</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<a class="skip-link" href="#main">跳到主要内容</a>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">◧</span>
+    <div>
+      <h1>社区服务负荷预测与排班情景</h1>
+      <p class="subtitle">合成数据 · 区间预测 · 技能分级能力核算</p>
+    </div>
+  </div>
+  <div class="topbar-meta" id="topbar-meta" aria-live="polite"></div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" aria-label="情景与资料控制">
+    <section class="card" id="scenario-card">
+      <div class="card-head">
+        <h2>情景参数</h2>
+        <button type="button" class="link-btn" id="reset-scenario">恢复默认</button>
+      </div>
+      <form id="scenario-form" class="form" novalidate>
+        <div class="field-row">
+          <label class="field">
+            <span>起始周</span>
+            <select name="start_week" id="start-week"></select>
+          </label>
+          <label class="field">
+            <span>预测周数</span>
+            <input type="number" name="horizon_weeks" min="1" max="12" step="1" value="2">
+          </label>
+        </div>
+        <div class="field-row">
+          <label class="field">
+            <span>历史窗口（周）</span>
+            <input type="number" name="history_weeks" min="1" max="12" step="1" value="4">
+          </label>
+          <label class="field">
+            <span>周趋势（%）</span>
+            <input type="number" name="weekly_trend_pct" min="-20" max="20" step="1" value="0">
+          </label>
+        </div>
+        <label class="field">
+          <span>录入延迟口径</span>
+          <select name="late_entry_mode">
+            <option value="range">区间：低值剔除迟到件，高值保留</option>
+            <option value="include">全部保留（可能夸大当期负荷）</option>
+            <option value="exclude">全部剔除（可能低估总量）</option>
+          </select>
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>可兑现率（%）</span>
+            <input type="number" name="utilization" min="10" max="100" step="1" value="80">
+          </label>
+          <label class="field">
+            <span>上下浮动（百分点）</span>
+            <input type="number" name="utilization_spread" min="0" max="40" step="1" value="10">
+          </label>
+        </div>
+        <div class="field-row">
+          <label class="field">
+            <span>积压消化目标（%）</span>
+            <input type="number" name="backlog_target_pct" min="0" max="100" step="5" value="50">
+          </label>
+          <label class="field">
+            <span>日历系数口径</span>
+            <select name="calendar_mode">
+              <option value="apply">应用（含不确定性）</option>
+              <option value="ignore">不应用</option>
+            </select>
+          </label>
+        </div>
+        <label class="check">
+          <input type="checkbox" name="include_paused_backlog">
+          <span>把挂起事项纳入积压消化目标</span>
+        </label>
+        <label class="field">
+          <span>日历/情景系数不确定性（%）</span>
+          <input type="number" name="calendar_uncertainty" min="0" max="100" step="5" value="25">
+        </label>
+
+        <details class="advanced" id="service-minutes">
+          <summary>各类事项工时假设（分钟/件）</summary>
+          <div id="service-minutes-body"></div>
+        </details>
+
+        <div class="preset-row" role="group" aria-label="预设情景">
+          <button type="button" class="chip" data-preset="base">基准</button>
+          <button type="button" class="chip" data-preset="conservative">保守（能力下沿）</button>
+          <button type="button" class="chip" data-preset="stress">压力（需求上沿）</button>
+          <button type="button" class="chip" data-preset="no-calendar">忽略日历</button>
+        </div>
+        <p class="form-error" id="scenario-error" role="alert" hidden></p>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>保存的情景</h2>
+        <span class="muted" id="scenario-count"></span>
+      </div>
+      <div class="field">
+        <label class="sr-only" for="scenario-label">新情景名称</label>
+        <div class="inline-form">
+          <input id="scenario-label" type="text" maxlength="60" placeholder="如：W21 市场活动">
+          <button type="button" class="btn btn-secondary" id="save-scenario">保存</button>
+        </div>
+      </div>
+      <ul class="list" id="saved-scenarios"></ul>
+      <p class="hint">保存的情景可加载回参数面板；对比表在结果区。</p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>到件修订</h2>
+        <span class="muted">撤销 / 转派 / 补录</span>
+      </div>
+      <p class="hint">修订先于负荷计算生效；已确认班表不会被静默改写，只会产生差异提示。</p>
+      <form id="adjustment-form" class="form" novalidate>
+        <div class="field-row">
+          <label class="field">
+            <span>类型</span>
+            <select name="kind" id="adj-kind">
+              <option value="cancel">撤销</option>
+              <option value="supplement">补录</option>
+              <option value="transfer">转派</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>件数变化</span>
+            <input type="number" name="count_delta" id="adj-delta" step="1" value="-1" required>
+          </label>
+        </div>
+        <div class="field-row">
+          <label class="field">
+            <span>网格</span>
+            <select name="grid" id="adj-grid"></select>
+          </label>
+          <label class="field">
+            <span>类别</span>
+            <select name="category" id="adj-category"></select>
+          </label>
+        </div>
+        <div class="field-row">
+          <label class="field">
+            <span>周</span>
+            <input type="text" name="week" id="adj-week" list="adjustment-weeks" placeholder="2026-W19" required>
+          </label>
+          <label class="field" id="adj-togrid-field" hidden>
+            <span>转入网格</span>
+            <select name="to_grid" id="adj-togrid"></select>
+          </label>
+        </div>
+        <label class="field">
+          <span>备注</span>
+          <input type="text" name="note" id="adj-note" maxlength="200" placeholder="可选：来源或原因">
+        </label>
+        <p class="form-error" id="adjustment-error" role="alert" hidden></p>
+        <button type="submit" class="btn btn-primary">应用修订</button>
+      </form>
+      <datalist id="adjustment-weeks"></datalist>
+      <ul class="list" id="adjustment-list"></ul>
+    </section>
+  </aside>
+
+  <main class="main" id="main">
+    <div class="banner" id="error-banner" role="alert" hidden></div>
+
+    <section class="summary-grid" aria-label="总体情况">
+      <article class="kpi">
+        <h2>新到件需求</h2>
+        <p class="kpi-range" id="kpi-demand">—</p>
+        <p class="kpi-note" id="kpi-demand-note"></p>
+      </article>
+      <article class="kpi">
+        <h2>可兑现能力</h2>
+        <p class="kpi-range" id="kpi-capacity">—</p>
+        <p class="kpi-note" id="kpi-capacity-note"></p>
+      </article>
+      <article class="kpi kpi-warn">
+        <h2>技能缺口</h2>
+        <p class="kpi-range" id="kpi-gap">—</p>
+        <p class="kpi-note" id="kpi-gap-note"></p>
+      </article>
+      <article class="kpi kpi-danger">
+        <h2>无人可派的需求</h2>
+        <p class="kpi-range" id="kpi-unfillable">—</p>
+        <p class="kpi-note" id="kpi-unfillable-note"></p>
+      </article>
+      <article class="kpi">
+        <h2>未结积压</h2>
+        <p class="kpi-range" id="kpi-backlog">—</p>
+        <p class="kpi-note" id="kpi-backlog-note"></p>
+      </article>
+    </section>
+
+    <section class="banner banner-plan" id="plan-banner" hidden></section>
+
+    <section class="card" id="assumptions-card">
+      <div class="card-head">
+        <h2>本次建议依赖的假设</h2>
+        <button type="button" class="link-btn" id="toggle-assumptions" aria-expanded="true">收起</button>
+      </div>
+      <div id="assumptions-body"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>逐周 × 网格 × 技能：需求、能力与缺口</h2>
+        <div class="legend" aria-hidden="true">
+          <span class="badge badge-covered">可覆盖</span>
+          <span class="badge badge-risk">临界</span>
+          <span class="badge badge-partial">缺口</span>
+          <span class="badge badge-unfillable">无人可派</span>
+          <span class="badge badge-unknown">不可预测</span>
+        </div>
+      </div>
+      <p class="hint">区间显示为「低值 – 点估计 – 高值」。缺口按技能分列，不做跨技能净额抵消；不可预测的单元不按零计入合计。</p>
+      <div class="table-wrap">
+        <table class="data-table" id="forecast-table">
+          <thead>
+            <tr>
+              <th scope="col">周</th>
+              <th scope="col">网格</th>
+              <th scope="col">技能/类别</th>
+              <th scope="col">需求（小时）</th>
+              <th scope="col">可兑现能力（小时）</th>
+              <th scope="col">缺口（小时）</th>
+              <th scope="col">状态</th>
+              <th scope="col">说明</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>排班建议（固定班次内的分配）</h2>
+      </div>
+      <p class="hint">建议只使用现有班次并分摊到技能需求；不会自动新增人员。缺口换算为参考班次时须再次满足技能有效期与不跨点约束。</p>
+      <div class="table-wrap">
+        <table class="data-table" id="schedule-table">
+          <thead>
+            <tr>
+              <th scope="col">周</th>
+              <th scope="col">网格</th>
+              <th scope="col">技能</th>
+              <th scope="col">人员</th>
+              <th scope="col">分配小时</th>
+              <th scope="col">班次</th>
+              <th scope="col">口径</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="card">
+        <div class="card-head"><h2>缺口所需增派</h2></div>
+        <div id="additional-shifts"></div>
+      </section>
+      <section class="card">
+        <div class="card-head"><h2>未分配班次时数</h2></div>
+        <div id="idle-capacity"></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>未结积压与消化目标</h2>
+      </div>
+      <p class="hint">积压独立于新到件需求；仅使用满足本周新需求后的剩余能力，避免把积压当成新需求重复计算。</p>
+      <div class="table-wrap">
+        <table class="data-table" id="backlog-table">
+          <thead>
+            <tr>
+              <th scope="col">事项</th>
+              <th scope="col">网格</th>
+              <th scope="col">类别</th>
+              <th scope="col">预估工时</th>
+              <th scope="col">状态</th>
+              <th scope="col">处理口径</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="backlog-target-table">
+          <thead>
+            <tr>
+              <th scope="col">周</th>
+              <th scope="col">网格</th>
+              <th scope="col">类别</th>
+              <th scope="col">消化目标</th>
+              <th scope="col">新需求后剩余能力</th>
+              <th scope="col">可覆盖</th>
+              <th scope="col">缺口</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>已确认班表与当前建议</h2>
+        <span class="muted" id="confirmed-meta"></span>
+      </div>
+      <div id="plan-diff"></div>
+      <div class="confirm-row">
+        <label class="field inline-field">
+          <span>确认名称/版本</span>
+          <input type="text" id="confirm-label" maxlength="80" placeholder="如：W20 值班表 v1">
+        </label>
+        <button type="button" class="btn btn-primary" id="confirm-plan">以当前建议确认新班表</button>
+        <button type="button" class="btn btn-ghost" id="clear-plan">清除确认</button>
+      </div>
+      <p class="hint">确认动作需要显式执行；资料或修订变化只更新建议并显示差异，不会改写已确认内容。</p>
+    </section>
+
+    <section class="card" id="warnings-card">
+      <div class="card-head"><h2>资料与口径提示</h2></div>
+      <ul class="list list-warning" id="warning-list"></ul>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>情景对比</h2>
+        <span class="muted">已保存情景的汇总</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="scenario-compare">
+          <thead>
+            <tr>
+              <th scope="col">情景</th>
+              <th scope="col">需求（典型）</th>
+              <th scope="col">需求区间</th>
+              <th scope="col">能力（典型）</th>
+              <th scope="col">缺口（典型）</th>
+              <th scope="col">不可预测单元</th>
+              <th scope="col">操作</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>导出</h2>
+      </div>
+      <p class="hint">导出当前情景的完整分析结果（JSON），包含输入指纹、假设与所有区间。</p>
+      <button type="button" class="btn btn-secondary" id="export-json">下载分析结果 JSON</button>
+    </section>
+  </main>
+</div>
+
+<footer class="footer">
+  <p>全部人员、班次与到件均为合成记录；日历系数是情景输入，不是已验证的因果系数。区间反映资料与假设的不确定性，不应被解读为统计置信区间。</p>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>
